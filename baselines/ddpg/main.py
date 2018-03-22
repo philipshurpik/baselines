@@ -11,6 +11,8 @@ import baselines.ddpg.training as training
 from baselines.ddpg.models import Actor, Critic
 from baselines.ddpg.memory import Memory
 from baselines.ddpg.noise import *
+from baselines.ddpg.trading.TradingEnv import TradingEnv
+from baselines.ddpg.trading.sin_config import config
 
 import gym
 import tensorflow as tf
@@ -23,13 +25,15 @@ def run(env_id, seed, noise_type, layer_norm, evaluation, **kwargs):
         logger.set_level(logger.DISABLED)
 
     # Create envs.
-    env = gym.make(env_id)
+    env_filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), config.data.file_name)
+    env = TradingEnv(csv_name=env_filename, window_size=config.model.window_size, verbose=1, train_mode=True)
+    env.seed(config.seed)
     env = bench.Monitor(env, logger.get_dir() and os.path.join(logger.get_dir(), str(rank)))
 
     if evaluation and rank==0:
-        eval_env = gym.make(env_id)
+        eval_env = TradingEnv(csv_name=env_filename, window_size=config.model.window_size, verbose=1, train_mode=False)
+        eval_env.seed(config.seed)
         eval_env = bench.Monitor(eval_env, os.path.join(logger.get_dir(), 'gym_eval'))
-        # env = bench.Monitor(env, None)
     else:
         eval_env = None
 
