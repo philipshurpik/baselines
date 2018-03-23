@@ -46,7 +46,7 @@ class TradingSimulator(object):
 
     def _get_current_window(self):
         reversed_window = self.states[self.current_index - self.window_size: self.current_index][::-1]
-        return reversed_window.reshape(-1, self.features_number, self.window_size, 1)
+        return reversed_window.reshape(-1, 1, self.window_size, self.features_number)
 
     def _get_start_end_index(self, train_mode=True):
         train_index = self.window_size  # np.random.randint(self.window_size, self.train_end_index - self.episode_duration - 1)

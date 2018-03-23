@@ -47,7 +47,7 @@ class TradingEnv(gym.Env):
         self.window_size = window_size
         self.features_number = self.simulator.features_number
         self.action_space = spaces.Box(-1, +1, (1,), dtype=np.float32)
-        high = np.ones((self.features_number, window_size, 1)) if self.features_number > 1 else np.ones(window_size)
+        high = np.ones((1, self.window_size, self.features_number)) if self.features_number > 1 else np.ones(window_size)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
         self.initial_cash = initial_cash
         self.remaining_cash_value = initial_cash
@@ -120,7 +120,7 @@ class TradingEnv(gym.Env):
         return self._reshape(sim_state)   # [env_state, sim_state]
 
     def _reshape(self, state):
-        return state.reshape(-1, self.features_number, self.window_size, 1) if self.features_number > 1 \
+        return state.reshape(-1, 1, self.window_size, self.features_number) if self.features_number > 1 \
             else state.reshape(self.window_size)
 
     def _get_env_state(self, reward, action):

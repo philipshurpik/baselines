@@ -1,6 +1,6 @@
 import tensorflow as tf
 import tensorflow.contrib as tc
-
+import baselines.common.tf_util as U
 
 class Model(object):
     def __init__(self, name):
@@ -31,12 +31,18 @@ class Actor(Model):
                 scope.reuse_variables()
 
             x = obs
-            x = tf.layers.dense(x, 64)
+            x = tf.layers.conv2d(x, 16, kernel_size=[1, 8], strides=[1, 4], name='conv1')
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
             x = tf.nn.relu(x)
-            
-            x = tf.layers.dense(x, 64)
+
+            x = tf.layers.conv2d(x, 32, kernel_size=[1, 4], strides=[1, 2], name='conv2')
+            if self.layer_norm:
+                x = tc.layers.layer_norm(x, center=True, scale=True)
+            x = tf.nn.relu(x)
+
+            x = U.flattenallbut0(x)
+            x = tf.layers.dense(x, 256, kernel_initializer=U.normc_initializer(1.0), name='dense')
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
             x = tf.nn.relu(x)
@@ -57,13 +63,19 @@ class Critic(Model):
                 scope.reuse_variables()
 
             x = obs
-            x = tf.layers.dense(x, 64)
+            x = tf.layers.conv2d(x, 16, kernel_size=[1, 8], strides=[1, 4], name='conv1')
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
             x = tf.nn.relu(x)
 
+            x = tf.layers.conv2d(x, 32, kernel_size=[1, 4], strides=[1, 2], name='conv2')
+            if self.layer_norm:
+                x = tc.layers.layer_norm(x, center=True, scale=True)
+            x = tf.nn.relu(x)
+
+            x = U.flattenallbut0(x)
             x = tf.concat([x, action], axis=-1)
-            x = tf.layers.dense(x, 64)
+            x = tf.layers.dense(x, 256, kernel_initializer=U.normc_initializer(1.0), name='dense')
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
             x = tf.nn.relu(x)
