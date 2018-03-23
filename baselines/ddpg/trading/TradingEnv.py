@@ -36,7 +36,7 @@ rnd = lambda x: round(x, DECIMAL_SIGNS)
 
 
 class TradingEnv(gym.Env):
-    COMMISSION = 0
+    COMMISSION = 0.001
 
     def __init__(self, csv_name, window_size, episode_duration, save_folder=None, initial_cash=100,
                  date_columns=["Date", "Time"], index_column="Date_Time", start_date=None, verbose=0, train_mode=True):
@@ -55,7 +55,8 @@ class TradingEnv(gym.Env):
         self.max_draw_down = 0
         self.position_value = 0
         self.position_size = 0
-        self.actual_reward = 0
+        self.total_reward = 0
+        self.cumulative_step_reward = 0
         self.journal = []
         self.actions_journal = []
         self.train_stats = TradingStats(os.path.join(save_folder, "ddpg_train_stats.csv") if save_folder else None)
@@ -66,12 +67,12 @@ class TradingEnv(gym.Env):
         np.random.seed(seed)
         self.simulator.seed(seed)
 
-    # def _make_step_single(self, action):
-    #     total_cash = self.remaining_cash_value + self.position_value
-    #     make_action = abs(self.position_value/total_cash - action[0]) > 0.1
-    #     return self._make_step([action[0], 1 if make_action else -1])
-
     def step(self, action):
+        total_cash = self.remaining_cash_value + self.position_value
+        make_action = abs(self.position_value/total_cash - action[0]) > 0.1
+        return self._make_step([action[0], action[1] if make_action else -1])
+
+    def _make_step(self, action):
         sim_state, done = self.simulator.step()
         close_price = self.simulator.data.iloc[self.simulator.current_index]["Close"]
         date = self.simulator.date_time[self.simulator.current_index]
@@ -84,7 +85,7 @@ class TradingEnv(gym.Env):
         self.position_size = action_meta["size"]
         self.max_cash_value = max(action_meta["total_cash"], self.max_cash_value)
         self.max_draw_down = max((1 - action_meta["total_cash"] / self.max_cash_value), self.max_draw_down)
-        self.actual_reward = self.actual_reward + action_meta["reward"]
+        self.total_reward = self.total_reward + action_meta["reward"]
         no_action_trigger = (self.simulator.step_number > self.simulator.episode_duration/10) and len(self.journal) == 0
         no_action_penalty = self.initial_cash * 0.001 if no_action_trigger else 0
 
@@ -112,7 +113,7 @@ class TradingEnv(gym.Env):
         self.max_draw_down = 0
         self.position_value = 0
         self.position_size = 0
-        self.actual_reward = 0
+        self.total_reward = 0
         self.journal = []
         self.actions_journal = []
 
@@ -138,6 +139,7 @@ class TradingEnv(gym.Env):
         if hold:
             return hold_data
         else:
+            self.cumulative_step_reward = 0
             return self._calculate_step_position(action_amount, close_price, hold_data)
 
     @staticmethod
@@ -221,11 +223,11 @@ class TradingEnv(gym.Env):
         active_actions = np.array(self.actions_journal)[np.array(self.actions_journal)[:, 1] > 0] if len(self.actions_journal) > 0 else np.array([[[]]])
         long_actions = active_actions[active_actions[:, 0] > 0]
         short_actions = active_actions[active_actions[:, 0] < 0]
-        print("%s\t\t| Start: %s\t| End: %s\t| Buy&Hold: %.4f\t| Longs: %d\t| Shorts: %d\t| Ep. Reward %.4f\t" % (sim.stock_name, start_date, end_date, buy_hold_value, len(long_actions), len(short_actions), self.actual_reward))
+        print("%s\t\t| Start: %s\t| End: %s\t| Buy&Hold: %.4f\t| Longs: %d\t| Shorts: %d\t| Ep. Reward %.4f\t" % (sim.stock_name, start_date, end_date, buy_hold_value, len(long_actions), len(short_actions), self.total_reward))
         print("%s\t| Operations: %d\t| Max Drawdown: %.4f\t| Max cash: %.4f\t| Final cash: %.4f" %
               (train_or_test, len(self.journal), self.max_draw_down, self.max_cash_value, total_cash))
         stats = self.train_stats if self.train_mode else self.test_stats
-        stats.add(self.actual_reward, buy_hold_value, self.max_draw_down, 1, len(self.journal))
+        stats.add(self.total_reward, buy_hold_value, self.max_draw_down, 1, len(self.journal))
         stats.print_latest()
 
     def render(self, mode='human'):
