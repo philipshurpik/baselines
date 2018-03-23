@@ -4,7 +4,7 @@ import pandas as pd
 
 class TradingSimulator(object):
     def __init__(self, csv_name, start_date, date_columns, index_column, window_size,
-                 episode_duration=480, train_split=0.8, normalize=True):
+                 episode_duration, train_split=0.8, normalize=True):
         df = pd.read_csv(csv_name, parse_dates=[date_columns])
         df = df[~np.isnan(df['Close'])].set_index(pd.DatetimeIndex(df[index_column]))
         if start_date is not None:
@@ -46,7 +46,7 @@ class TradingSimulator(object):
 
     def _get_current_window(self):
         reversed_window = self.states[self.current_index - self.window_size: self.current_index][::-1]
-        return reversed_window.reshape(-1, 1, self.window_size, self.features_number)
+        return reversed_window.reshape(1, self.window_size, self.features_number)
 
     def _get_start_end_index(self, train_mode=True):
         train_index = self.window_size  # np.random.randint(self.window_size, self.train_end_index - self.episode_duration - 1)

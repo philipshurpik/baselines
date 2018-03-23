@@ -3,12 +3,12 @@ from box import Box
 config = Box({
     "data": {
         "file_name": "data/SINMODEL1_256_delta0002.csv",
-        "episode_duration": 480
+        "episode_duration": 1000
     },
     "seed": 42,
     "model": {
         "stocks_number": 1,
-        "window_size": 30
+        "window_size": 200
     },
     "ddpg": {
         "buffer_size": 100000,

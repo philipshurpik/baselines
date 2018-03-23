@@ -36,17 +36,17 @@ rnd = lambda x: round(x, DECIMAL_SIGNS)
 
 
 class TradingEnv(gym.Env):
-    COMMISSION = 0.0025
+    COMMISSION = 0
 
-    def __init__(self, csv_name, window_size, save_folder=None, initial_cash=100,
+    def __init__(self, csv_name, window_size, episode_duration, save_folder=None, initial_cash=100,
                  date_columns=["Date", "Time"], index_column="Date_Time", start_date=None, verbose=0, train_mode=True):
         self.simulator = TradingSimulator(csv_name=csv_name, date_columns=date_columns, index_column=index_column,
-                                          start_date=start_date, window_size=window_size)
+                                          start_date=start_date, window_size=window_size, episode_duration=episode_duration)
         self.verbose = verbose
         self.train_mode = train_mode
         self.window_size = window_size
         self.features_number = self.simulator.features_number
-        self.action_space = spaces.Box(-1, +1, (1,), dtype=np.float32)
+        self.action_space = spaces.Box(-1, +1, (2,), dtype=np.float32)
         high = np.ones((1, self.window_size, self.features_number)) if self.features_number > 1 else np.ones(window_size)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
         self.initial_cash = initial_cash
@@ -66,12 +66,12 @@ class TradingEnv(gym.Env):
         np.random.seed(seed)
         self.simulator.seed(seed)
 
-    def step(self, action):
-        total_cash = self.remaining_cash_value + self.position_value
-        make_action = abs(self.position_value/total_cash - action[0]) > 0.1
-        return self._make_step([action[0], 1 if make_action else -1])
+    # def _make_step_single(self, action):
+    #     total_cash = self.remaining_cash_value + self.position_value
+    #     make_action = abs(self.position_value/total_cash - action[0]) > 0.1
+    #     return self._make_step([action[0], 1 if make_action else -1])
 
-    def _make_step(self, action):
+    def step(self, action):
         sim_state, done = self.simulator.step()
         close_price = self.simulator.data.iloc[self.simulator.current_index]["Close"]
         date = self.simulator.date_time[self.simulator.current_index]
@@ -94,7 +94,7 @@ class TradingEnv(gym.Env):
         no_short_or_long_trigger = (self.simulator.step_number > self.simulator.episode_duration/1.5) and (short_actions == 0 or long_actions == 0)
         no_short_or_long_penalty = self.initial_cash * 0.001 if no_short_or_long_trigger else 0
 
-        step_reward = action_meta["reward"] - no_action_penalty - no_short_or_long_penalty
+        step_reward = action_meta["reward"] - no_short_or_long_penalty # - no_action_penalty
 
         if self.max_draw_down > 0.50:
             done = True
@@ -106,6 +106,7 @@ class TradingEnv(gym.Env):
         return all_state, step_reward, done, {"date": self.simulator.date_time[self.simulator.current_index]}
 
     def reset(self):
+        self.print_summary()
         self.remaining_cash_value = self.initial_cash
         self.max_cash_value = self.initial_cash
         self.max_draw_down = 0
@@ -120,7 +121,7 @@ class TradingEnv(gym.Env):
         return self._reshape(sim_state)   # [env_state, sim_state]
 
     def _reshape(self, state):
-        return state.reshape(-1, 1, self.window_size, self.features_number) if self.features_number > 1 \
+        return state.reshape(1, self.window_size, self.features_number) if self.features_number > 1 \
             else state.reshape(self.window_size)
 
     def _get_env_state(self, reward, action):
@@ -208,7 +209,7 @@ class TradingEnv(gym.Env):
         self.train_mode = train_mode
         return self.reset()
 
-    def print_summary(self, epsilon=1):
+    def print_summary(self):
         sim = self.simulator
         start_date = sim.date_time[sim.start_index]
         end_date = sim.date_time[sim.end_index]
@@ -221,10 +222,10 @@ class TradingEnv(gym.Env):
         long_actions = active_actions[active_actions[:, 0] > 0]
         short_actions = active_actions[active_actions[:, 0] < 0]
         print("%s\t\t| Start: %s\t| End: %s\t| Buy&Hold: %.4f\t| Longs: %d\t| Shorts: %d\t| Ep. Reward %.4f\t" % (sim.stock_name, start_date, end_date, buy_hold_value, len(long_actions), len(short_actions), self.actual_reward))
-        print("%s\t| Epsilon: %.4f\t| Operations: %d\t| Max Drawdown: %.4f\t| Max cash: %.4f\t| Final cash: %.4f" %
-              (train_or_test, epsilon, len(self.journal), self.max_draw_down, self.max_cash_value, total_cash))
+        print("%s\t| Operations: %d\t| Max Drawdown: %.4f\t| Max cash: %.4f\t| Final cash: %.4f" %
+              (train_or_test, len(self.journal), self.max_draw_down, self.max_cash_value, total_cash))
         stats = self.train_stats if self.train_mode else self.test_stats
-        stats.add(self.actual_reward, buy_hold_value, self.max_draw_down, epsilon, len(self.journal))
+        stats.add(self.actual_reward, buy_hold_value, self.max_draw_down, 1, len(self.journal))
         stats.print_latest()
 
     def render(self, mode='human'):
