@@ -3,7 +3,7 @@ import pandas as pd
 
 
 class TradingSimulator(object):
-    def __init__(self, csv_name, start_date, date_columns, index_column, window_size,
+    def __init__(self, csv_name, start_date, date_columns, index_column, window_size, model_type,
                  episode_duration, train_split=0.8, amplitude=None):
         df = pd.read_csv(csv_name, parse_dates=[date_columns])
         df = df[~np.isnan(df['Close'])].set_index(pd.DatetimeIndex(df[index_column]))
@@ -28,15 +28,19 @@ class TradingSimulator(object):
         self.start_index, self.end_index = self._get_start_end_index()
         self.current_index = self.start_index
         self.step_number = 0
-        self.features_number = 1
+        if model_type == 'conv':
+            self.states = np.array([
+                self._normalize_column(df['Open'], normalize=True).values,
+                self._normalize_column(df['High'], normalize=True).values,
+                self._normalize_column(df['Low'], normalize=True).values,
+                self._normalize_column(df['Close'], normalize=True).values,
+                # self._normalize_column(df['Volume'].fillna(0), normalize).values,
+            ])
+        else:
+            self.states = np.array([self._normalize_column(df['Close'], normalize=True).values])
 
-        self.states = np.array([
-            #self._normalize_column(df['Open'], normalize).values,
-            #self._normalize_column(df['High'], normalize).values,
-            #self._normalize_column(df['Low'], normalize).values,
-            self._normalize_column(df['Close'], normalize=True).values,
-            #self._normalize_column(df['Volume'].fillna(0), normalize).values,
-        ]).reshape((-1, self.features_number))
+        self.features_number = self.states.shape[0]
+        self.states = self.states.reshape((-1, self.features_number))
         self.reset()
 
     @staticmethod
@@ -78,6 +82,6 @@ class TradingSimulator(object):
         return self._get_current_window(), done
 
     def get_episode_values(self):
-        time = self.date_time[self.start_index: self.end_index].to_pydatetime().reshape(-1,1)
+        time = self.date_time[self.start_index: self.end_index].to_pydatetime().reshape(-1, 1)
         values = self.data_values.values[self.start_index:self.end_index, :]
         return np.concatenate((time, values), axis=1)

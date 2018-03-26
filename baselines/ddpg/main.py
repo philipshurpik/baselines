@@ -8,7 +8,8 @@ from baselines.common.misc_util import (
     boolean_flag,
 )
 import baselines.ddpg.training as training
-from baselines.ddpg.models import Actor, Critic
+from baselines.ddpg.models.fc_model import ActorFC, CriticFC
+from baselines.ddpg.models.conv_model import ActorConv, CriticConv
 from baselines.ddpg.memory import Memory
 from baselines.ddpg.noise import *
 from baselines.ddpg.trading.TradingEnv import TradingEnv
@@ -26,12 +27,14 @@ def run(env_id, seed, noise_type, layer_norm, evaluation, **kwargs):
 
     # Create envs.
     env_filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), config.data.file_name)
-    env = TradingEnv(csv_name=env_filename, window_size=config.model.window_size, train_mode=True, episode_duration=config.data.episode_duration, amplitude=config.data.amplitude)
+    env = TradingEnv(csv_name=env_filename, window_size=config.model.window_size, train_mode=True, model_type=config.model.type,
+                     episode_duration=config.data.episode_duration, amplitude=config.data.amplitude)
     env.seed(config.seed)
     env = bench.Monitor(env, logger.get_dir() and os.path.join(logger.get_dir(), str(rank)))
 
     if evaluation and rank==0:
-        eval_env = TradingEnv(csv_name=env_filename, window_size=config.model.window_size, train_mode=False, episode_duration=config.data.episode_duration, amplitude=config.data.amplitude)
+        eval_env = TradingEnv(csv_name=env_filename, window_size=config.model.window_size, train_mode=False, model_type=config.model.type,
+                              episode_duration=config.data.episode_duration, amplitude=config.data.amplitude)
         eval_env.seed(config.seed)
         eval_env = bench.Monitor(eval_env, os.path.join(logger.get_dir(), 'gym_eval'))
     else:
@@ -59,8 +62,12 @@ def run(env_id, seed, noise_type, layer_norm, evaluation, **kwargs):
 
     # Configure components.
     memory = Memory(limit=int(1e6), action_shape=env.action_space.shape, observation_shape=env.observation_space.shape)
-    critic = Critic(layer_norm=layer_norm)
-    actor = Actor(nb_actions, layer_norm=layer_norm)
+    if config.model.type == 'conv':
+        actor = ActorConv(nb_actions, layer_norm=layer_norm)
+        critic = CriticConv(layer_norm=layer_norm)
+    else:
+        actor = ActorFC(nb_actions, layer_norm=layer_norm)
+        critic = CriticFC(layer_norm=layer_norm)
 
     # Seed everything to make things reproducible.
     seed = seed + 1000000 * rank

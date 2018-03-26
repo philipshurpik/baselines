@@ -8,6 +8,8 @@ config = Box({
     },
     "seed": 42,
     "model": {
+        # type - conv | fc | lstm
+        "type": "fc",
         "stocks_number": 1,
         "window_size": 120
     },

@@ -42,10 +42,10 @@ SIZE_FIELD_INDEX = JournalAction._fields.index('size')
 class TradingEnv(gym.Env):
     COMMISSION = 0.0025
 
-    def __init__(self, csv_name, window_size, episode_duration, save_folder=None, initial_cash=100, amplitude=None,
+    def __init__(self, csv_name, window_size, episode_duration, model_type, save_folder=None, initial_cash=100, amplitude=None,
                  date_columns=["Date", "Time"], index_column="Date_Time", start_date=None, verbose=0, train_mode=True):
         self.simulator = TradingSimulator(csv_name=csv_name, date_columns=date_columns, index_column=index_column, amplitude=amplitude,
-                                          start_date=start_date, window_size=window_size, episode_duration=episode_duration)
+                                          start_date=start_date, window_size=window_size, episode_duration=episode_duration, model_type=model_type)
         self.verbose = verbose
         self.train_mode = train_mode
         self.window_size = window_size
@@ -53,7 +53,7 @@ class TradingEnv(gym.Env):
         self.action_space = spaces.Box(-1, +1, (2,), dtype=np.float32)
         high = np.ones((1, self.window_size, self.features_number)) if self.features_number > 1 else np.ones(window_size)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
-        self.min_position_size = 0.1
+        self.min_position_size = 0.05
         self.initial_cash = initial_cash
         self.remaining_cash_value = initial_cash
         self.max_cash_value = initial_cash
@@ -90,7 +90,7 @@ class TradingEnv(gym.Env):
         self.total_reward = self.total_reward + action_meta["reward"]
 
         # multiply reward for numerical stability
-        step_reward = action_meta["reward"] * 10
+        step_reward = action_meta["reward"] * 100
 
         if self.max_draw_down > 0.50:
             done = True
