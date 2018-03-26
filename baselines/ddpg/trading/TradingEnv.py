@@ -40,31 +40,28 @@ SIZE_FIELD_INDEX = JournalAction._fields.index('size')
 
 
 class TradingEnv(gym.Env):
-    COMMISSION = 0.0025
-
-    def __init__(self, csv_name, window_size, episode_duration, model_type, save_folder=None, initial_cash=100, amplitude=None,
-                 date_columns=["Date", "Time"], index_column="Date_Time", start_date=None, verbose=0, train_mode=True):
-        self.simulator = TradingSimulator(csv_name=csv_name, date_columns=date_columns, index_column=index_column, amplitude=amplitude,
-                                          start_date=start_date, window_size=window_size, episode_duration=episode_duration, model_type=model_type)
+    def __init__(self, csv_name, model_config, data_config, verbose=0, train_mode=True):
+        self.simulator = TradingSimulator(csv_name=csv_name, model_config=model_config, data_config=data_config)
         self.verbose = verbose
         self.train_mode = train_mode
-        self.window_size = window_size
+        self.commission = data_config.commission
+        self.window_size = model_config.window_size
         self.features_number = self.simulator.features_number
         self.action_space = spaces.Box(-1, +1, (2,), dtype=np.float32)
-        high = np.ones((1, self.window_size, self.features_number)) if self.features_number > 1 else np.ones(window_size)
+        high = np.ones((1, self.window_size, self.features_number)) if self.features_number > 1 else np.ones(self.window_size)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
         self.min_position_size = 0.05
-        self.initial_cash = initial_cash
-        self.remaining_cash_value = initial_cash
-        self.max_cash_value = initial_cash
+        self.initial_cash = data_config.initial_cash
+        self.remaining_cash_value = data_config.initial_cash
+        self.max_cash_value = data_config.initial_cash
         self.max_draw_down = 0
         self.position_value = 0
         self.position_size = 0
         self.total_reward = 0
         self.cumulative_step_reward = 0
         self.journal = []
-        self.train_stats = TradingStats(os.path.join(save_folder, "ddpg_train_stats.csv") if save_folder else None)
-        self.test_stats = TradingStats(os.path.join(save_folder, "ddpg_test_stats.csv") if save_folder else None)
+        stats_file = "ddpg_train_stats.csv" if self.train_mode else "ddpg_test_stats.csv"
+        self.stats = TradingStats(os.path.join(model_config.save_folder, stats_file) if model_config.save_folder else None)
         self.reset()
 
     def seed(self, seed=None):
@@ -89,8 +86,7 @@ class TradingEnv(gym.Env):
         self.max_draw_down = max((1 - action_meta["total_cash"] / self.max_cash_value), self.max_draw_down)
         self.total_reward = self.total_reward + action_meta["reward"]
 
-        # multiply reward for numerical stability
-        step_reward = action_meta["reward"] * 100
+        step_reward = action_meta["reward"]
 
         if self.max_draw_down > 0.50:
             done = True
@@ -159,14 +155,13 @@ class TradingEnv(gym.Env):
             "total_cash": rnd(remaining_cash + new_position_value)
         }
 
-    @staticmethod
-    def _calculate_step_position(action_amount, close_price, hold_data):
+    def _calculate_step_position(self, action_amount, close_price, hold_data):
         hold_value, hold_size, hold_remaining, hold_total, hold_reward = \
             hold_data["value"], hold_data["size"], hold_data["remaining_cash"], hold_data["total_cash"], hold_data["reward"]
 
         value_wo_comission = hold_total * action_amount
         value_wo_comission_diff = value_wo_comission - hold_value
-        value_diff = value_wo_comission_diff / (1 + TradingEnv.COMMISSION)
+        value_diff = value_wo_comission_diff / (1 + self.commission)
         size_diff = value_diff / close_price
 
         value = hold_value + value_diff
@@ -217,9 +212,8 @@ class TradingEnv(gym.Env):
               (sim.stock_name, start_date, end_date, buy_hold_value, len(long_actions), len(short_actions), self.total_reward))
         print("%s\t| Operations: %d\t| Max Drawdown: %.4f\t| Max cash: %.4f\t| Final cash: %.4f" %
               (train_or_test, len(self.journal), self.max_draw_down, self.max_cash_value, total_cash))
-        stats = self.train_stats if self.train_mode else self.test_stats
-        stats.add(self.total_reward, buy_hold_value, self.max_draw_down, 1, len(self.journal))
-        stats.print_latest()
+        self.stats.add(self.total_reward, buy_hold_value, self.max_draw_down, 1, len(self.journal))
+        self.stats.print_latest()
         self.render()
 
     def render(self, mode='human'):

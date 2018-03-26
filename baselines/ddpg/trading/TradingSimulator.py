@@ -3,32 +3,31 @@ import pandas as pd
 
 
 class TradingSimulator(object):
-    def __init__(self, csv_name, start_date, date_columns, index_column, window_size, model_type,
-                 episode_duration, train_split=0.8, amplitude=None):
-        df = pd.read_csv(csv_name, parse_dates=[date_columns])
-        df = df[~np.isnan(df['Close'])].set_index(pd.DatetimeIndex(df[index_column]))
-        if start_date is not None:
-            df = df.iloc[start_date:]
+    def __init__(self, csv_name, model_config, data_config):
+        df = pd.read_csv(csv_name, parse_dates=[data_config.date_columns])
+        df = df[~np.isnan(df['Close'])].set_index(pd.DatetimeIndex(df[data_config.index_column]))
+        if data_config.start_date is not None:
+            df = df.iloc[data_config.start_date:]
 
         value_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
         df[value_columns] = df[value_columns].apply(pd.to_numeric)
 
         # temp stuff for sin simulation
-        if amplitude is not None:
+        if data_config.amplitude is not None:
             for col in ['Open', 'High', 'Low', 'Close']:
-                df[col] = self._sin_add_amplitude(df[col], amplitude)
+                df[col] = self._sin_add_amplitude(df[col], data_config.amplitude)
         self.data = df
         self.data_values = df[value_columns]
         self.stock_name = df['Currency'][0]
         self.date_time = self.data.index
         self.count = self.data.shape[0]
-        self.window_size = window_size
-        self.episode_duration = episode_duration
-        self.train_end_index = int(train_split * self.count)
+        self.window_size = model_config.window_size
+        self.episode_duration = data_config.episode_duration
+        self.train_end_index = int(data_config.train_split * self.count)
         self.start_index, self.end_index = self._get_start_end_index()
         self.current_index = self.start_index
         self.step_number = 0
-        if model_type == 'conv':
+        if model_config.type == 'conv':
             self.states = np.array([
                 self._normalize_column(df['Open'], normalize=True).values,
                 self._normalize_column(df['High'], normalize=True).values,
