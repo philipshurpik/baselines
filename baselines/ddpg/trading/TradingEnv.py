@@ -40,9 +40,9 @@ JournalAction = collections.namedtuple('Action', ('date', 'size', 'price', 'meta
 class TradingEnv(gym.Env):
     COMMISSION = 0.001
 
-    def __init__(self, csv_name, window_size, episode_duration, save_folder=None, initial_cash=100,
+    def __init__(self, csv_name, window_size, episode_duration, save_folder=None, initial_cash=100, amplitude=None,
                  date_columns=["Date", "Time"], index_column="Date_Time", start_date=None, verbose=0, train_mode=True):
-        self.simulator = TradingSimulator(csv_name=csv_name, date_columns=date_columns, index_column=index_column,
+        self.simulator = TradingSimulator(csv_name=csv_name, date_columns=date_columns, index_column=index_column, amplitude=amplitude,
                                           start_date=start_date, window_size=window_size, episode_duration=episode_duration)
         self.verbose = verbose
         self.train_mode = train_mode

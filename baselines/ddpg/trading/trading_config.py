@@ -3,7 +3,8 @@ from box import Box
 config = Box({
     "data": {
         "file_name": "data/BTCETH60.csv",
-        "episode_duration": 480
+        "episode_duration": 480,
+        "amplitude": None
     },
     "seed": 42,
     "model": {

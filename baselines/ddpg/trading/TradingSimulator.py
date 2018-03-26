@@ -4,7 +4,7 @@ import pandas as pd
 
 class TradingSimulator(object):
     def __init__(self, csv_name, start_date, date_columns, index_column, window_size,
-                 episode_duration, train_split=0.8, normalize=True):
+                 episode_duration, train_split=0.8, normalize=True, amplitude=None):
         df = pd.read_csv(csv_name, parse_dates=[date_columns])
         df = df[~np.isnan(df['Close'])].set_index(pd.DatetimeIndex(df[index_column]))
         if start_date is not None:
@@ -12,6 +12,11 @@ class TradingSimulator(object):
 
         value_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
         df[value_columns] = df[value_columns].apply(pd.to_numeric)
+
+        # temp stuff for sin simulation
+        if amplitude is not None:
+            for col in ['Open', 'High', 'Low', 'Close']:
+                df[col] = self._sin_add_amplitude(df[col], amplitude)
         self.data = df
         self.data_values = df[value_columns]
         self.stock_name = df.iloc[0, 0]
@@ -37,6 +42,10 @@ class TradingSimulator(object):
     @staticmethod
     def seed(seed):
         np.random.seed(seed)
+
+    @staticmethod
+    def _sin_add_amplitude(df_column, amplitude):
+        return df_column + ((np.mean(df_column) - df_column) * amplitude)
 
     def _normalize_column(self, df_column, normalize):
         column = df_column.copy().pct_change().replace(np.inf, np.nan).fillna(0)
