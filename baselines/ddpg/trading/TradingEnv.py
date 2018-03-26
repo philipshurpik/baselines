@@ -53,7 +53,7 @@ class TradingEnv(gym.Env):
         self.action_space = spaces.Box(-1, +1, (2,), dtype=np.float32)
         high = np.ones((1, self.window_size, self.features_number)) if self.features_number > 1 else np.ones(window_size)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
-        self.min_position_size = 0.01
+        self.min_position_size = 0.1
         self.initial_cash = initial_cash
         self.remaining_cash_value = initial_cash
         self.max_cash_value = initial_cash
@@ -89,7 +89,8 @@ class TradingEnv(gym.Env):
         self.max_draw_down = max((1 - action_meta["total_cash"] / self.max_cash_value), self.max_draw_down)
         self.total_reward = self.total_reward + action_meta["reward"]
 
-        step_reward = action_meta["reward"]
+        # multiply reward for numerical stability
+        step_reward = action_meta["reward"] * 10
 
         if self.max_draw_down > 0.50:
             done = True

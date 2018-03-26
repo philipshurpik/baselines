@@ -4,7 +4,7 @@ import pandas as pd
 
 class TradingSimulator(object):
     def __init__(self, csv_name, start_date, date_columns, index_column, window_size,
-                 episode_duration, train_split=0.8, normalize=True, amplitude=None):
+                 episode_duration, train_split=0.8, amplitude=None):
         df = pd.read_csv(csv_name, parse_dates=[date_columns])
         df = df[~np.isnan(df['Close'])].set_index(pd.DatetimeIndex(df[index_column]))
         if start_date is not None:
