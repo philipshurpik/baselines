@@ -71,7 +71,7 @@ class TradingSimulator(object):
         return self._get_current_window(), False
 
     def step(self):
-        done = True if self.current_index >= self.end_index else False
+        done = True if self.current_index >= self.end_index - 1 else False
         if not done:
             self.step_number += 1
             self.current_index += 1

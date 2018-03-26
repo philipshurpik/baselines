@@ -31,7 +31,7 @@ def run(env_id, seed, noise_type, layer_norm, evaluation, **kwargs):
     env = bench.Monitor(env, logger.get_dir() and os.path.join(logger.get_dir(), str(rank)))
 
     if evaluation and rank==0:
-        eval_env = TradingEnv(csv_name=env_filename, window_size=config.model.window_size, train_mode=False, episode_duration=config.data.episode_duration)
+        eval_env = TradingEnv(csv_name=env_filename, window_size=config.model.window_size, train_mode=False, episode_duration=config.data.episode_duration, amplitude=config.data.amplitude)
         eval_env.seed(config.seed)
         eval_env = bench.Monitor(eval_env, os.path.join(logger.get_dir(), 'gym_eval'))
     else:

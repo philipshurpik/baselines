@@ -1,5 +1,6 @@
 import math
 import os
+import sys
 import collections
 
 import gym
@@ -34,7 +35,8 @@ The 3 Version was implemented here:
 """
 DECIMAL_SIGNS = 6
 rnd = lambda x: round(x, DECIMAL_SIGNS)
-JournalAction = collections.namedtuple('Action', ('date', 'size', 'price', 'meta'))
+JournalAction = collections.namedtuple('Action', ('index', 'date', 'size', 'price', 'meta'))
+SIZE_FIELD_INDEX = JournalAction._fields.index('size')
 
 
 class TradingEnv(gym.Env):
@@ -70,15 +72,16 @@ class TradingEnv(gym.Env):
         self.simulator.seed(seed)
 
     def step(self, action):
-        sim_state, done = self.simulator.step()
         close_price = self.simulator.data.iloc[self.simulator.current_index]["Close"]
         date = self.simulator.date_time[self.simulator.current_index]
         action_meta = self._calculate_step(action=action, close_price=close_price, position_size=self.position_size,
                                            position_value=self.position_value, remaining_cash=self.remaining_cash_value)
         if abs(action_meta["size_diff"]) >= self.min_position_size:
-            self.journal.append(JournalAction(date=date, size=action_meta['size_diff'], price=close_price, meta=action_meta))
+            self.journal.append(JournalAction(index=self.simulator.step_number, date=date, size=action_meta['size_diff'], price=close_price, meta=action_meta))
             if self.verbose:
                 self.print_action(action_meta, close_price, date)
+
+        sim_state, done = self.simulator.step()
         self.remaining_cash_value = action_meta["remaining_cash"]
         self.position_value = action_meta["value"]
         self.position_size = action_meta["size"]
@@ -98,7 +101,8 @@ class TradingEnv(gym.Env):
         return all_state, step_reward, done, {"date": self.simulator.date_time[self.simulator.current_index]}
 
     def reset(self):
-        self.print_summary()
+        if self.simulator.step_number > 0:
+            self.print_summary()
         self.remaining_cash_value = self.initial_cash
         self.max_cash_value = self.initial_cash
         self.max_draw_down = 0
@@ -205,7 +209,7 @@ class TradingEnv(gym.Env):
         train_or_test = "Train" if self.train_mode else "Test"
         total_cash = self.remaining_cash_value + self.position_value
 
-        action_sizes = np.array(list(zip(*self.journal))[1]) if len(self.journal) > 0 else np.array([])
+        action_sizes = np.array(list(zip(*self.journal))[SIZE_FIELD_INDEX]) if len(self.journal) > 0 else np.array([])
         long_actions = action_sizes[action_sizes > 0]
         short_actions = action_sizes[action_sizes < 0]
         print("%s\t\t| Start: %s\t| End: %s\t| Buy&Hold: %.4f\t| Longs: %d\t| Shorts: %d\t| Ep. Reward %.4f\t" %
@@ -219,4 +223,12 @@ class TradingEnv(gym.Env):
 
     def render(self, mode='human'):
         title = self.simulator.stock_name + (" Train" if self.train_mode else " Test")
-        render(self.simulator.get_episode_values(), title=title, scale=0.5)
+        values = self.simulator.get_episode_values()
+        trades = np.zeros((len(values), 2))
+        for trade in self.journal:
+            trade_type = 0 if trade.size > 0 else 1
+            trades[trade.index][trade_type] = trade.price
+        trade_values = np.concatenate((values, trades), axis=1)
+        # Scale for PyCharm debugger SciView
+        scale = 0.5 if sys.gettrace() else 1
+        render(trade_values, title=title, scale=scale)
