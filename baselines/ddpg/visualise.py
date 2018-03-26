@@ -1,6 +1,6 @@
 import os
 from trading.TradingEnv import TradingEnv
 from trading.sin_config import config
-env = TradingEnv(csv_name=config.data.file_name, window_size=config.model.window_size,
-                 episode_duration=config.data.episode_duration, amplitude=config.data.amplitude)
+env_filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), config.data.file_name)
+env = TradingEnv(csv_name=env_filename, model_config=config.model, data_config=config.data)
 env.render()
