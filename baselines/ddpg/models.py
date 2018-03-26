@@ -84,12 +84,12 @@ class ActorConv(Model):
                 scope.reuse_variables()
 
             x = obs
-            x = tf.layers.conv2d(x, 16, kernel_size=[1, 8], strides=[1, 4], name='conv1')
+            x = tf.layers.conv2d(x, 32, kernel_size=[1, 8], strides=[1, 4], name='conv1')
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
             x = tf.nn.relu(x)
 
-            x = tf.layers.conv2d(x, 32, kernel_size=[1, 4], strides=[1, 2], name='conv2')
+            x = tf.layers.conv2d(x, 64, kernel_size=[1, 4], strides=[1, 2], name='conv2')
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
             x = tf.nn.relu(x)
