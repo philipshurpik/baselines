@@ -23,14 +23,14 @@ class TradingSimulator(object):
         self.start_index, self.end_index = self._get_start_end_index()
         self.current_index = self.start_index
         self.step_number = 0
-        self.features_number = 2
+        self.features_number = 1
 
         self.states = np.array([
             #self._normalize_column(df['Open'], normalize).values,
             #self._normalize_column(df['High'], normalize).values,
             #self._normalize_column(df['Low'], normalize).values,
-            self._normalize_column(df['Close'], normalize).values,
-            self._normalize_column(df['Volume'].fillna(0), normalize).values,
+            self._normalize_column(df['Close'], normalize=True).values,
+            #self._normalize_column(df['Volume'].fillna(0), normalize).values,
         ]).reshape((-1, self.features_number))
         self.reset()
 

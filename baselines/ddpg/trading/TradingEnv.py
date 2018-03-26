@@ -1,5 +1,6 @@
 import math
 import os
+import collections
 
 import gym
 import numpy as np
@@ -33,6 +34,7 @@ The 3 Version was implemented here:
 """
 DECIMAL_SIGNS = 6
 rnd = lambda x: round(x, DECIMAL_SIGNS)
+JournalAction = collections.namedtuple('Action', ('date', 'size', 'price', 'meta'))
 
 
 class TradingEnv(gym.Env):
@@ -49,6 +51,7 @@ class TradingEnv(gym.Env):
         self.action_space = spaces.Box(-1, +1, (2,), dtype=np.float32)
         high = np.ones((1, self.window_size, self.features_number)) if self.features_number > 1 else np.ones(window_size)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
+        self.min_position_size = 0.01
         self.initial_cash = initial_cash
         self.remaining_cash_value = initial_cash
         self.max_cash_value = initial_cash
@@ -58,7 +61,6 @@ class TradingEnv(gym.Env):
         self.total_reward = 0
         self.cumulative_step_reward = 0
         self.journal = []
-        self.actions_journal = []
         self.train_stats = TradingStats(os.path.join(save_folder, "ddpg_train_stats.csv") if save_folder else None)
         self.test_stats = TradingStats(os.path.join(save_folder, "ddpg_test_stats.csv") if save_folder else None)
         self.reset()
@@ -68,34 +70,23 @@ class TradingEnv(gym.Env):
         self.simulator.seed(seed)
 
     def step(self, action):
-        total_cash = self.remaining_cash_value + self.position_value
-        make_action = abs(self.position_value/total_cash - action[0]) > 0.1
-        return self._make_step([action[0], action[1] if make_action else -1])
-
-    def _make_step(self, action):
         sim_state, done = self.simulator.step()
         close_price = self.simulator.data.iloc[self.simulator.current_index]["Close"]
         date = self.simulator.date_time[self.simulator.current_index]
         action_meta = self._calculate_step(action=action, close_price=close_price, position_size=self.position_size,
                                            position_value=self.position_value, remaining_cash=self.remaining_cash_value)
-        self.execute_action(action_meta, close_price, date)
-        self.actions_journal.append(action)
+        if abs(action_meta["size_diff"]) >= self.min_position_size:
+            self.journal.append(JournalAction(date=date, size=action_meta['size_diff'], price=close_price, meta=action_meta))
+            if self.verbose:
+                self.print_action(action_meta, close_price, date)
         self.remaining_cash_value = action_meta["remaining_cash"]
         self.position_value = action_meta["value"]
         self.position_size = action_meta["size"]
         self.max_cash_value = max(action_meta["total_cash"], self.max_cash_value)
         self.max_draw_down = max((1 - action_meta["total_cash"] / self.max_cash_value), self.max_draw_down)
         self.total_reward = self.total_reward + action_meta["reward"]
-        no_action_trigger = (self.simulator.step_number > self.simulator.episode_duration/10) and len(self.journal) == 0
-        no_action_penalty = self.initial_cash * 0.001 if no_action_trigger else 0
 
-        active_actions = np.array(self.actions_journal)[np.array(self.actions_journal)[:, 1] > 0] if len(self.actions_journal) > 0 else np.array([[[]]])
-        long_actions = len(active_actions[active_actions[:, 0] > 0])
-        short_actions = len(active_actions[active_actions[:, 0] < 0])
-        no_short_or_long_trigger = (self.simulator.step_number > self.simulator.episode_duration/1.5) and (short_actions == 0 or long_actions == 0)
-        no_short_or_long_penalty = self.initial_cash * 0.001 if no_short_or_long_trigger else 0
-
-        step_reward = action_meta["reward"] - no_short_or_long_penalty # - no_action_penalty
+        step_reward = action_meta["reward"]
 
         if self.max_draw_down > 0.50:
             done = True
@@ -114,8 +105,8 @@ class TradingEnv(gym.Env):
         self.position_value = 0
         self.position_size = 0
         self.total_reward = 0
+        self.cumulative_step_reward = 0
         self.journal = []
-        self.actions_journal = []
 
         # env_state = self._get_env_state(0, [0, 0])
         sim_state, done = self.simulator.reset(train_mode=self.train_mode)
@@ -194,18 +185,11 @@ class TradingEnv(gym.Env):
             "reward": rnd(total_step_reward)
         }
 
-    def execute_action(self, action_meta, price, date):
-        if action_meta["size_diff"] != 0:
-            self.journal.append((date, price, action_meta))
-        if not self.verbose:
-            return
-        if action_meta["size_diff"] != 0:
-            order_type = "Buy " if action_meta["size_diff"] > 0 else "Sell"
-            print("%s | %s | Reward: %.6f | Size: %.4f %s | Price: %.4f | Position value: %.4f | Position size: %.4f | Total cash: %.6f" %
-                  (date, order_type, action_meta["reward"], action_meta["size_diff"], self.simulator.stock_name, price, action_meta["value"],
-                   action_meta["size"], action_meta["total_cash"]))
-        else:
-            print("%s | Hold | Reward: %.6f | Total cash: %.4f" % (date, action_meta["reward"], action_meta["total_cash"]))
+    def print_action(self, action_meta, price, date):
+        order_type = "Buy " if action_meta["size_diff"] > 0 else "Sell"
+        print("%s | %s | Reward: %.6f | Size: %.4f %s | Price: %.4f | Position value: %.4f | Position size: %.4f | Total cash: %.6f" %
+              (date, order_type, action_meta["reward"], action_meta["size_diff"], self.simulator.stock_name, price, action_meta["value"],
+               action_meta["size"], action_meta["total_cash"]))
 
     def reset_train_mode(self, train_mode):
         self.train_mode = train_mode
@@ -220,10 +204,12 @@ class TradingEnv(gym.Env):
         buy_hold_value = self.initial_cash * (end_p/start_p) - self.initial_cash
         train_or_test = "Train" if self.train_mode else "Test"
         total_cash = self.remaining_cash_value + self.position_value
-        active_actions = np.array(self.actions_journal)[np.array(self.actions_journal)[:, 1] > 0] if len(self.actions_journal) > 0 else np.array([[[]]])
-        long_actions = active_actions[active_actions[:, 0] > 0]
-        short_actions = active_actions[active_actions[:, 0] < 0]
-        print("%s\t\t| Start: %s\t| End: %s\t| Buy&Hold: %.4f\t| Longs: %d\t| Shorts: %d\t| Ep. Reward %.4f\t" % (sim.stock_name, start_date, end_date, buy_hold_value, len(long_actions), len(short_actions), self.total_reward))
+
+        action_sizes = np.array(list(zip(*self.journal))[1]) if len(self.journal) > 0 else np.array([])
+        long_actions = action_sizes[action_sizes > 0]
+        short_actions = action_sizes[action_sizes < 0]
+        print("%s\t\t| Start: %s\t| End: %s\t| Buy&Hold: %.4f\t| Longs: %d\t| Shorts: %d\t| Ep. Reward %.4f\t" %
+              (sim.stock_name, start_date, end_date, buy_hold_value, len(long_actions), len(short_actions), self.total_reward))
         print("%s\t| Operations: %d\t| Max Drawdown: %.4f\t| Max cash: %.4f\t| Final cash: %.4f" %
               (train_or_test, len(self.journal), self.max_draw_down, self.max_cash_value, total_cash))
         stats = self.train_stats if self.train_mode else self.test_stats

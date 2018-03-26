@@ -31,6 +31,59 @@ class Actor(Model):
                 scope.reuse_variables()
 
             x = obs
+            x = tf.layers.dense(x, 128)
+            if self.layer_norm:
+                x = tc.layers.layer_norm(x, center=True, scale=True)
+            x = tf.nn.relu(x)
+
+            x = tf.layers.dense(x, 128)
+            if self.layer_norm:
+                x = tc.layers.layer_norm(x, center=True, scale=True)
+            x = tf.nn.relu(x)
+
+            x = tf.layers.dense(x, self.nb_actions, kernel_initializer=tf.random_uniform_initializer(minval=-3e-3, maxval=3e-3))
+            x = tf.nn.tanh(x)
+        return x
+
+
+class Critic(Model):
+    def __init__(self, name='critic', layer_norm=True):
+        super(Critic, self).__init__(name=name)
+        self.layer_norm = layer_norm
+
+    def __call__(self, obs, action, reuse=False):
+        with tf.variable_scope(self.name) as scope:
+            if reuse:
+                scope.reuse_variables()
+
+            x = obs
+            x = tf.layers.dense(x, 64)
+            if self.layer_norm:
+                x = tc.layers.layer_norm(x, center=True, scale=True)
+            x = tf.nn.relu(x)
+
+            x = tf.concat([x, action], axis=-1)
+            x = tf.layers.dense(x, 64)
+            if self.layer_norm:
+                x = tc.layers.layer_norm(x, center=True, scale=True)
+            x = tf.nn.relu(x)
+
+            x = tf.layers.dense(x, 1, kernel_initializer=tf.random_uniform_initializer(minval=-3e-3, maxval=3e-3))
+        return x
+
+
+class ActorConv(Model):
+    def __init__(self, nb_actions, name='actor', layer_norm=True):
+        super(ActorConv, self).__init__(name=name)
+        self.nb_actions = nb_actions
+        self.layer_norm = layer_norm
+
+    def __call__(self, obs, reuse=False):
+        with tf.variable_scope(self.name) as scope:
+            if reuse:
+                scope.reuse_variables()
+
+            x = obs
             x = tf.layers.conv2d(x, 16, kernel_size=[1, 8], strides=[1, 4], name='conv1')
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
@@ -46,15 +99,15 @@ class Actor(Model):
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
             x = tf.nn.relu(x)
-            
+
             x = tf.layers.dense(x, self.nb_actions, kernel_initializer=tf.random_uniform_initializer(minval=-3e-3, maxval=3e-3))
             x = tf.nn.tanh(x)
         return x
 
 
-class Critic(Model):
+class CriticConv(Model):
     def __init__(self, name='critic', layer_norm=True):
-        super(Critic, self).__init__(name=name)
+        super(CriticConv, self).__init__(name=name)
         self.layer_norm = layer_norm
 
     def __call__(self, obs, action, reuse=False):
