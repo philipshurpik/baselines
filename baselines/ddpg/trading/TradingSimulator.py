@@ -19,7 +19,7 @@ class TradingSimulator(object):
                 df[col] = self._sin_add_amplitude(df[col], amplitude)
         self.data = df
         self.data_values = df[value_columns]
-        self.stock_name = df.iloc[0, 0]
+        self.stock_name = df['Currency'][0]
         self.date_time = self.data.index
         self.count = self.data.shape[0]
         self.window_size = window_size
@@ -58,7 +58,7 @@ class TradingSimulator(object):
         return reversed_window.reshape(1, self.window_size, self.features_number)
 
     def _get_start_end_index(self, train_mode=True):
-        train_index = self.window_size  # np.random.randint(self.window_size, self.train_end_index - self.episode_duration - 1)
+        train_index = np.random.randint(self.window_size, self.train_end_index - self.episode_duration - 1)
         test_index = np.random.randint(self.train_end_index + self.window_size, self.count - self.episode_duration - 1)
         start_index = train_index if train_mode else test_index
         end_index = start_index + self.episode_duration

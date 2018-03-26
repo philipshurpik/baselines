@@ -28,7 +28,6 @@ def run(env_id, seed, noise_type, layer_norm, evaluation, **kwargs):
     env_filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), config.data.file_name)
     env = TradingEnv(csv_name=env_filename, window_size=config.model.window_size, train_mode=True, episode_duration=config.data.episode_duration, amplitude=config.data.amplitude)
     env.seed(config.seed)
-    env.render()
     env = bench.Monitor(env, logger.get_dir() and os.path.join(logger.get_dir(), str(rank)))
 
     if evaluation and rank==0:

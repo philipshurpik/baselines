@@ -37,12 +37,13 @@ def render_sticks(ax, quotes, width=1000, colorup='#00FF00', colordown='#FF0000'
         ax.add_patch(rect)
 
 
-def render(values):
-    fig, ax = plt.subplots(figsize=(20, 8))
-    render_sticks(ax, values, width=20*50)
+def render(values, title, scale=1):
+    fig, ax = plt.subplots(figsize=(20*scale, 8*scale))
+    render_sticks(ax, values, width=20*50*scale)
     ax.autoscale_view()
     ax.xaxis.set_major_locator(ticker.MaxNLocator(20))
     ax.xaxis.set_major_formatter(dates.DateFormatter('%Y-%m-%d %H:%M'))
     plt.xticks(rotation=40)
+    plt.title(title)
     plt.grid()
     plt.show()

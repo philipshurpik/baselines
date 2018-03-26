@@ -38,7 +38,7 @@ JournalAction = collections.namedtuple('Action', ('date', 'size', 'price', 'meta
 
 
 class TradingEnv(gym.Env):
-    COMMISSION = 0.001
+    COMMISSION = 0.0025
 
     def __init__(self, csv_name, window_size, episode_duration, save_folder=None, initial_cash=100, amplitude=None,
                  date_columns=["Date", "Time"], index_column="Date_Time", start_date=None, verbose=0, train_mode=True):
@@ -215,6 +215,8 @@ class TradingEnv(gym.Env):
         stats = self.train_stats if self.train_mode else self.test_stats
         stats.add(self.total_reward, buy_hold_value, self.max_draw_down, 1, len(self.journal))
         stats.print_latest()
+        self.render()
 
     def render(self, mode='human'):
-        render(self.simulator.get_episode_values())
+        title = self.simulator.stock_name + (" Train" if self.train_mode else " Test")
+        render(self.simulator.get_episode_values(), title=title, scale=0.5)
