@@ -33,13 +33,13 @@ class TradingSimulator(object):
                 self._normalize_column(df['High'], normalize=True).values,
                 self._normalize_column(df['Low'], normalize=True).values,
                 self._normalize_column(df['Close'], normalize=True).values,
-                # self._normalize_column(df['Volume'].fillna(0), normalize).values,
+                self._normalize_column(df['Volume'].fillna(0), normalize=True).values,
             ])
         else:
             self.states = np.array([self._normalize_column(df['Close'], normalize=True).values])
 
         self.features_number = self.states.shape[0]
-        self.states = self.states.reshape((-1, self.features_number))
+        self.states = self.states.T
         self.reset()
 
     @staticmethod
