@@ -13,7 +13,7 @@ from baselines.ddpg.models.conv_model import ActorConv, CriticConv
 from baselines.ddpg.memory import Memory
 from baselines.ddpg.noise import *
 from baselines.ddpg.trading.TradingEnv import TradingEnv
-from baselines.ddpg.trading.sin_config import config
+from baselines.ddpg.trading.trading_config import config
 
 import gym
 import tensorflow as tf
